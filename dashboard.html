@@ -1129,9 +1129,9 @@
             }
             
             try {
-                provider = new ethers.providers.Web3Provider(window.ethereum);
+                provider = new ethers.BrowserProvider(window.ethereum);
                 await provider.send("eth_requestAccounts", []);
-                signer = provider.getSigner();
+                signer = await provider.getSigner();
                 address = await signer.getAddress();
                 
                 document.getElementById('connectWallet').textContent = 
