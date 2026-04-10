@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AMAT Protocol | Autonomous Monetary AI Token</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/ethers@6.7.0/dist/ethers.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1178,8 +1178,11 @@
         }
         
         async function initContracts() {
-            const network = await provider.getNetwork();
-            CONFIG.chainId = Number(network.chainId);
+            try {
+                const network = await provider.getNetwork();
+                CONFIG.chainId = Number(network.chainId);
+                console.log('Connected to chain:', CONFIG.chainId);
+                console.log('Contract addresses:', CONFIG.contracts);
             
             if (CONFIG.chainId !== 80002 && CONFIG.chainId !== 137) {
                 document.getElementById('contractInfo').textContent = 
@@ -1206,6 +1209,11 @@
             
             if (contracts.circuitBreaker) {
                 document.getElementById('emergencyBtn').disabled = false;
+            }
+            
+            console.log('Contracts initialized:', contracts);
+            } catch (error) {
+                console.error('initContracts error:', error);
             }
         }
 
@@ -1313,6 +1321,7 @@
                 
             } catch (error) {
                 console.error('Failed to update supply:', error);
+                document.getElementById('totalSupply').textContent = 'Error: ' + (error.reason || error.message || 'Check console');
             }
         }
 
