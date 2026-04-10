@@ -1081,6 +1081,7 @@
                 "function lastSupplyAdjustment() view returns (uint256)",
                 "function canAdjust() view returns (bool)",
                 "function timeUntilNextEpoch() view returns (uint256)",
+                "function balanceOf(address) view returns (uint256)",
                 "event SupplyAdjusted(int256 delta, uint256 newSupply, uint256 timestamp, bytes32 reason)"
             ],
             oracle: [
@@ -1241,7 +1242,8 @@
                     updatePrediction(),
                     updateSupply(),
                     updateEmergency(),
-                    updateMode()
+                    updateMode(),
+                    updateTreasury()
                 ]);
             } catch (error) {
                 console.error('Dashboard update failed:', error);
@@ -1329,6 +1331,19 @@
             } catch (error) {
                 console.error('Failed to update supply:', error);
                 document.getElementById('totalSupply').textContent = 'Error: ' + (error.reason || error.message || 'Check console');
+            }
+        }
+
+        async function updateTreasury() {
+            if (!contracts.token) return;
+            
+            try {
+                const treasuryBalance = await contracts.token.balanceOf(CONFIG.contracts.treasury);
+                const formattedBalance = ethers.formatUnits(treasuryBalance, 18);
+                const displayValue = Number(formattedBalance).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                document.getElementById('treasuryBalance').textContent = displayValue + ' AMAT';
+            } catch (error) {
+                console.error('Failed to update treasury:', error);
             }
         }
 
