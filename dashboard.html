@@ -1109,6 +1109,13 @@
         let chart;
 
         async function init() {
+            // Wait for ethers to load
+            if (typeof ethers === 'undefined') {
+                console.error('ethers.js not loaded');
+                document.getElementById('totalSupply').textContent = 'Ethers loading...';
+                return;
+            }
+            
             document.getElementById('connectWallet').addEventListener('click', connectWallet);
             document.getElementById('emergencyBtn').addEventListener('click', activateEmergency);
             
@@ -1300,7 +1307,7 @@
             
             try {
                 const supply = await contracts.token.totalSupply();
-                const formattedSupply = ethers.utils.formatUnits(supply, 18);
+                const formattedSupply = ethers.formatUnits(supply, 18);
                 
                 document.getElementById('totalSupply').textContent = 
                     `${Number(formattedSupply).toLocaleString(undefined, { maximumFractionDigits: 0 })} AMAT`;
