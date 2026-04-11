@@ -1524,12 +1524,19 @@
                 "function adjustSupply(int256 delta, bytes32 reason)",
                 "function canAdjust() view returns (bool)",
                 "function currentMode() view returns (uint128)",
-                "function getModeDescription() view returns (string)",
+                "function getModeDescription() view returns (string memory)",
                 "function getSupplyStats() view returns (uint256, uint256, uint256, uint256, uint128, uint128, uint256, uint256)"
             ],
             circuitBreaker: [
                 "function isPaused() view returns (bool)",
                 "function getEmergencyState() view returns (bool, uint256)"
+            ],
+            staking: [
+                "function poolCount() view returns (uint256)",
+                "function addPool(address, address, uint256, uint256, uint256, uint256) returns (uint256)",
+                "function stake(uint256 _poolId, uint256 _amount, uint256 _lockDuration, bool _autoCompound)",
+                "function getStakeInfo(uint256 _poolId, address _user) view returns (uint256, uint256, uint256, uint256)",
+                "function getPendingReward(uint256 _poolId, address _user) view returns (uint256)"
             ]
         };
 
@@ -1567,6 +1574,7 @@
                 await switchToAmoy();
                 await initContracts();
                 await updateDashboard();
+                await updateStakingInfo();
                 showToast('Wallet connected!', 'success');
             } catch (error) {
                 console.error('Connection failed:', error);
@@ -1617,10 +1625,33 @@
                 contracts.token = new ethers.Contract(CONFIG.contracts.token, ABIS.token, signer);
                 contracts.supplyModule = new ethers.Contract(CONFIG.contracts.supplyModule, ABIS.supplyModule, signer);
                 contracts.circuitBreaker = new ethers.Contract(CONFIG.contracts.circuitBreaker, ABIS.circuitBreaker, signer);
+                contracts.staking = new ethers.Contract(CONFIG.contracts.staking, ABIS.staking, signer);
                 
                 document.getElementById('emergencyBtn').disabled = false;
+                
+                // Update staking info if connected
+                await updateStakingInfo();
             } catch (error) {
                 console.error('Contract init error:', error);
+            }
+        }
+        
+        async function updateStakingInfo() {
+            if (!contracts.staking || !contracts.token) return;
+            try {
+                const poolCount = await contracts.staking.poolCount();
+                if (poolCount > 0) {
+                    const stakeInfo = await contracts.staking.getStakeInfo(0, address);
+                    const pendingReward = await contracts.staking.getPendingReward(0, address);
+                    
+                    document.getElementById('stakeStaked').textContent = ethers.formatUnits(stakeInfo[0], 18) + ' AMAT';
+                    document.getElementById('stakePending').textContent = ethers.formatUnits(pendingReward, 18) + ' AMAT';
+                }
+                
+                const balance = await contracts.token.balanceOf(address);
+                document.getElementById('stakeBalance').textContent = ethers.formatUnits(balance, 18) + ' AMAT';
+            } catch (error) {
+                console.log('Staking info error:', error.message);
             }
         }
 
@@ -1766,16 +1797,58 @@
         }
 
         async function setMaxStake() {
-            document.getElementById('stakeAmount').value = '0';
-            showToast('Connect wallet to check balance', 'info');
+            if (!contracts.token) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const balance = await contracts.token.balanceOf(address);
+                document.getElementById('stakeAmount').value = ethers.formatUnits(balance, 18);
+            } catch (error) {
+                showToast('Error getting balance', 'error');
+            }
         }
 
         async function doStake() {
-            showToast('Staking coming soon!', 'info');
+            if (!contracts.staking || !contracts.token) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const amount = document.getElementById('stakeAmount').value;
+                const amountWei = ethers.parseUnits(amount, 18);
+                
+                if (amountWei <= 0) {
+                    showToast('Enter valid amount', 'error');
+                    return;
+                }
+                
+                // Check if pool exists
+                const poolCount = await contracts.staking.poolCount();
+                if (poolCount === 0n) {
+                    showToast('No staking pool yet', 'error');
+                    return;
+                }
+                
+                // Approve tokens
+                showToast('Approving tokens...', 'info');
+                const approveTx = await contracts.token.approve(CONFIG.contracts.staking, amountWei);
+                await approveTx.wait();
+                
+                // Stake
+                showToast('Staking...', 'info');
+                const stakeTx = await contracts.staking.stake(0, amountWei, selectedDuration, false);
+                await stakeTx.wait();
+                
+                showToast('Staked successfully!', 'success');
+                await updateStakingInfo();
+            } catch (error) {
+                showToast('Staking failed: ' + (error.reason || error.message), 'error');
+            }
         }
 
         async function doClaim() {
-            showToast('Claim coming soon!', 'info');
+            showToast('Claim rewards coming soon!', 'info');
         }
 
         async function doUnstake() {
