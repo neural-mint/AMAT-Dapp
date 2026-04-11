@@ -966,6 +966,11 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
 
         .toast.success { border-color: var(--accent-green); }
         .toast.error { border-color: var(--accent-red); }
@@ -1121,6 +1126,45 @@
         }
         .vote-bar-for { background: var(--accent-green); height: 100%; }
         .vote-bar-against { background: var(--accent-red); height: 100%; }
+        
+        /* Mobile Menu */
+        .mobile-menu-btn {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+        }
+        .mobile-menu-btn span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: var(--text-primary);
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        .mobile-menu-btn.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .mobile-menu-btn.active span:nth-child(2) { opacity: 0; }
+        .mobile-menu-btn.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+        
+        @media (max-width: 900px) {
+            .nav { display: none; }
+            .nav.mobile-open {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                top: 72px;
+                left: 0;
+                right: 0;
+                background: var(--bg-secondary);
+                padding: 16px;
+                border-bottom: 1px solid var(--border-color);
+                z-index: 99;
+            }
+            .mobile-menu-btn { display: flex; }
+        }
     </style>
 </head>
 <body>
@@ -1130,13 +1174,16 @@
                 <div class="logo-icon">AM</div>
                 <span class="logo-text">AMAT</span>
             </div>
-            <nav class="nav">
+            <nav class="nav" id="mainNav">
                 <button class="nav-item active" onclick="showTab('dashboard')">Dashboard</button>
                 <button class="nav-item" onclick="showTab('staking')">Staking</button>
                 <button class="nav-item" onclick="showTab('governance')">Governance</button>
                 <button class="nav-item" onclick="showTab('analytics')">Analytics</button>
                 <button class="nav-item" onclick="showTab('docs')">Docs</button>
             </nav>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+                <span></span><span></span><span></span>
+            </button>
             <div class="header-actions">
                 <div class="price-ticker">
                     <span class="price-ticker-value" id="amatPrice">$0.00</span>
@@ -1348,20 +1395,20 @@
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
                         <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px;">
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Mint per Epoch</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);">+2.00%</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Current Mode</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-cyan);" id="supplyMode">--</div>
                         </div>
                         <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px;">
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Burn per Epoch</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-red);">-3.00%</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Can Adjust Supply</div>
+                            <div style="font-size: 20px; font-weight: 600;" id="supplyCanAdjust">--</div>
                         </div>
                         <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px;">
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Sell Tax</div>
-                            <div style="font-size: 20px; font-weight: 600;">1.00%</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Epoch Total Minted</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);" id="epochMinted">--</div>
                         </div>
                         <div style="background: var(--bg-tertiary); padding: 16px; border-radius: 12px;">
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Whale Threshold</div>
-                            <div style="font-size: 20px; font-weight: 600;">5.00%</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Epoch Total Burned</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-red);" id="epochBurned">--</div>
                         </div>
                     </div>
                     <div style="margin-top: 20px; padding: 16px; background: var(--bg-tertiary); border-radius: 12px;">
@@ -1530,6 +1577,59 @@
         </section>
         </div>
 
+        <!-- TREASURY SECTION -->
+        <section class="staking-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <span class="card-title-icon">🏦</span>
+                        Treasury Management
+                    </h3>
+                    <span class="badge badge-blue" id="treasuryBalance2">$0</span>
+                </div>
+                <div class="card-body">
+                    <div class="staking-grid">
+                        <div class="staking-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Treasury Balance</span>
+                                <span class="stat-value blue" id="treasuryAmount">-- MATIC</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Reserve</span>
+                                <span class="stat-value" id="treasuryReserve">-- MATIC</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Daily Limit</span>
+                                <span class="stat-value" id="dailyLimit">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Weekly Limit</span>
+                                <span class="stat-value" id="weeklyLimit">--</span>
+                            </div>
+                        </div>
+                        <div class="staking-input">
+                            <h4 style="margin-bottom: 16px; color: var(--text-secondary);">Request Withdrawal</h4>
+                            <div class="input-group">
+                                <input type="number" id="withdrawAmount" placeholder="Amount in MATIC" class="input-field">
+                            </div>
+                            <div class="input-group">
+                                <input type="text" id="withdrawRecipient" placeholder="Recipient Address" class="input-field">
+                            </div>
+                            <div class="input-group">
+                                <input type="text" id="withdrawProposalId" placeholder="Proposal ID (optional)" class="input-field">
+                            </div>
+                            <div class="action-buttons">
+                                <button class="action-btn primary" id="requestWithdrawBtn" onclick="requestWithdrawal()">Request Withdrawal</button>
+                            </div>
+                            <p style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
+                                Withdrawals require governance approval. Daily limit: <span id="dailyUsed">0</span> / <span id="dailyMax">--</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- STAKING TAB -->
         <div id="tab-staking" class="tab-content">
             <div class="card">
@@ -1637,20 +1737,41 @@
                         <span class="card-title-icon">📊</span>
                         Protocol Analytics
                     </h3>
+                    <button class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;" onclick="refreshAnalytics()">
+                        ↻ Refresh
+                    </button>
                 </div>
                 <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Supply</span>
+                            <span class="stat-value gold" id="analyticsSupply">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Market Cap</span>
+                            <span class="stat-value green" id="analyticsMarketCap">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Staked</span>
+                            <span class="stat-value blue" id="analyticsStaked">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Staking Ratio</span>
+                            <span class="stat-value" id="analyticsStakedRatio">--</span>
+                        </div>
+                    </div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
                         <div class="stat-item">
-                            <span class="stat-label">24h Volume</span>
-                            <span class="stat-value green">$0</span>
+                            <span class="stat-label">Epoch Minted</span>
+                            <span class="stat-value green" id="analyticsEpochMint">--</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Total Transactions</span>
-                            <span class="stat-value">0</span>
+                            <span class="stat-label">Epoch Burned</span>
+                            <span class="stat-value red" id="analyticsEpochBurn">--</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Active Wallets</span>
-                            <span class="stat-value">0</span>
+                            <span class="stat-label">Proposals</span>
+                            <span class="stat-value" id="analyticsProposals">--</span>
                         </div>
                     </div>
                     <h4 style="margin-bottom: 16px;">Supply Over Time</h4>
@@ -1774,6 +1895,31 @@
                 "function getStakeInfo(uint256 _poolId, address _user) view returns (uint256 amount, uint256 startTime, uint256 lockEndTime, uint256 pendingReward)",
                 "function poolInfo(uint256) view returns (address stakingToken, address rewardToken, uint256 rewardPerSecond, uint256 lockDuration, uint256 minStake, uint256 maxStake, uint256 totalStaked, uint256 lastRewardTime, bool active)",
                 "function emergencyWithdraw(uint256 _poolId)"
+            ],
+            governance: [
+                "function proposalCount() view returns (uint256)",
+                "function proposals(uint256) view returns (address proposer, address target, bytes data, bytes32 descriptionHash, uint256 snapshotBlock, uint256 startTime, uint256 endTime, uint256 executionTime, uint256 forVotes, uint256 againstVotes, bool executed, bool cancelled, bool vetoed, bool defeated)",
+                "function castVote(uint256 id, bool support)",
+                "function getProposalState(uint256 id) view returns (bytes32)",
+                "function getProposalVotes(uint256 id) view returns (uint256 forVotes, uint256 againstVotes)",
+                "function hasVotedOnProposal(uint256 id, address voter) view returns (bool)",
+                "function PROPOSAL_THRESHOLD() view returns (uint256)"
+            ],
+            treasury: [
+                "function getBalance() view returns (uint256)",
+                "function getReserve() view returns (uint256)",
+                "function getDailyOutflowStatus() view returns (uint256 used, uint256 limit)",
+                "function getWeeklyOutflowStatus() view returns (uint256 used, uint256 limit)",
+                "function requestWithdrawal(address recipient, uint256 amount, bytes32 proposalId)",
+                "function withdrawalRequests(bytes32) view returns (address recipient, uint256 amount, uint256 timestamp, bool approved, bool executed, bool cancelled)"
+            ],
+            supplyModule: [
+                "function currentMode() view returns (uint128)",
+                "function canAdjust() view returns (bool)",
+                "function isSystemOperational() view returns (bool)",
+                "function getSupplyStats() view returns (uint256, uint256, uint256, uint256, uint128, uint128, uint256, uint256)",
+                "function getAdjustmentLimits() view returns (int256, int256, int256, int256, int256)",
+                "function getState() view returns (uint8)"
             ]
         };
 
@@ -1785,12 +1931,45 @@
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
+            toast.style.cssText = 'padding: 16px 24px; background: var(--bg-secondary); border-radius: 12px; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease; min-width: 280px;';
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+            const iconColor = type === 'success' ? 'var(--accent-green)' : type === 'error' ? 'var(--accent-red)' : 'var(--accent-primary)';
             toast.innerHTML = `
-                <span style="font-size: 18px;">${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</span>
-                <span>${message}</span>
+                <span style="font-size: 20px; color: ${iconColor};">${icon}</span>
+                <span style="flex: 1;">${message}</span>
             `;
             container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
+            
+            // Auto-dismiss with progress
+            let progress = 100;
+            const interval = setInterval(() => {
+                progress -= 2.5;
+                if (progress <= 0) {
+                    clearInterval(interval);
+                    toast.style.animation = 'slideOut 0.3s ease forwards';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 100);
+            
+            // Click to dismiss
+            toast.addEventListener('click', () => {
+                clearInterval(interval);
+                toast.remove();
+            });
+        }
+        
+        function parseError(error) {
+            if (error.reason) return error.reason;
+            if (error.message) {
+                if (error.message.includes('user rejected')) return 'Transaction rejected by user';
+                if (error.message.includes('insufficient funds')) return 'Insufficient funds for gas';
+                if (error.message.includes('execution reverted')) {
+                    const match = error.message.match(/reverted with reason string '([^']+)'/);
+                    return match ? match[1] : 'Transaction reverted';
+                }
+                return error.message.slice(0, 100);
+            }
+            return 'Unknown error occurred';
         }
 
         async function connectWallet() {
@@ -1813,6 +1992,7 @@
                 await updateDashboard();
                 await updateStakingInfo();
                 await updateStakingInfoTab2();
+                await updateSupplyInfo();
                 showToast('Wallet connected!', 'success');
             } catch (error) {
                 console.error('Connection failed:', error);
@@ -1864,11 +2044,15 @@
                 contracts.supplyModule = new ethers.Contract(CONFIG.contracts.supplyModule, ABIS.supplyModule, signer);
                 contracts.circuitBreaker = new ethers.Contract(CONFIG.contracts.circuitBreaker, ABIS.circuitBreaker, signer);
                 contracts.staking = new ethers.Contract(CONFIG.contracts.staking, ABIS.staking, signer);
+                contracts.governance = new ethers.Contract(CONFIG.contracts.governanceModule, ABIS.governance, signer);
+                contracts.treasury = new ethers.Contract(CONFIG.contracts.treasuryModule, ABIS.treasury, signer);
                 
                 document.getElementById('emergencyBtn').disabled = false;
                 
-                // Update staking info if connected
+                // Update all info
                 await updateStakingInfo();
+                await updateGovernanceInfo();
+                await updateTreasuryInfo();
             } catch (error) {
                 console.error('Contract init error:', error);
             }
@@ -2092,7 +2276,7 @@
                 await updateStakingInfo();
             } catch (error) {
                 console.error('Staking error:', error);
-                showToast('Staking failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Staking failed: ' + parseError(error), 'error');
             }
         }
 
@@ -2109,7 +2293,7 @@
                 await updateStakingInfo();
             } catch (error) {
                 console.error('Claim error:', error);
-                showToast('Claim failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Claim failed: ' + parseError(error), 'error');
             }
         }
 
@@ -2133,7 +2317,7 @@
                 await updateStakingInfo();
             } catch (error) {
                 console.error('Unstake error:', error);
-                showToast('Unstake failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Unstake failed: ' + parseError(error), 'error');
             }
         }
 
@@ -2153,16 +2337,130 @@
             
             event.target.classList.add('active');
             
+            // Close mobile menu
+            document.getElementById('mainNav').classList.remove('mobile-open');
+            document.getElementById('mobileMenuBtn').classList.remove('active');
+            
             if (tabName === 'staking' && address) {
                 updateStakingInfoTab2();
             }
+            if (tabName === 'governance' && address) {
+                updateGovernanceInfo();
+            }
+            if (tabName === 'analytics' && address) {
+                updateAnalyticsInfo();
+            }
+        }
+        
+        function toggleMobileMenu() {
+            const nav = document.getElementById('mainNav');
+            const btn = document.getElementById('mobileMenuBtn');
+            nav.classList.toggle('mobile-open');
+            btn.classList.toggle('active');
+        }
+        
+        function refreshAnalytics() {
+            updateAnalyticsInfo();
+            showToast('Analytics refreshed', 'success');
+        }
+        
+        async function updateAnalyticsInfo() {
+            if (!contracts.token) return;
+            try {
+                const supply = await contracts.token.totalSupply();
+                const govProposals = await contracts.governance?.proposalCount() || 0;
+                
+                let totalStaked = 0;
+                let poolCount = 0;
+                if (contracts.staking) {
+                    poolCount = await contracts.staking.poolCount();
+                    if (poolCount > 0n) {
+                        const pool = await contracts.staking.poolInfo(0);
+                        totalStaked = pool[6];
+                    }
+                }
+                
+                let stats = [0, 0, 0, 0, 0, 0, 0, 0];
+                if (contracts.supplyModule) {
+                    stats = await contracts.supplyModule.getSupplyStats();
+                }
+                
+                const supplyNum = Number(ethers.formatUnits(supply, 18));
+                const stakedNum = Number(ethers.formatUnits(totalStaked, 18));
+                const stakedRatio = supplyNum > 0 ? ((stakedNum / supplyNum) * 100).toFixed(1) : '0';
+                
+                document.getElementById('analyticsSupply').textContent = supplyNum.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' AMAT';
+                document.getElementById('analyticsMarketCap').textContent = '$' + supplyNum.toLocaleString(undefined, {maximumFractionDigits: 0});
+                document.getElementById('analyticsStaked').textContent = stakedNum.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' AMAT';
+                document.getElementById('analyticsStakedRatio').textContent = stakedRatio + '%';
+                document.getElementById('analyticsEpochMint').textContent = '+' + Number(ethers.formatUnits(stats[1], 18)).toFixed(0);
+                document.getElementById('analyticsEpochBurn').textContent = '-' + Number(ethers.formatUnits(stats[2], 18)).toFixed(0);
+                document.getElementById('analyticsProposals').textContent = govProposals.toString();
+                
+                // Update supply chart
+                updateSupplyChart(supplyNum);
+            } catch (error) {
+                console.log('Analytics error:', error.message);
+            }
+        }
+        
+        let supplyChart;
+        function initSupplyChart() {
+            const ctx = document.getElementById('supplyChart').getContext('2d');
+            supplyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Supply',
+                        data: [],
+                        borderColor: '#F0B90B',
+                        backgroundColor: 'rgba(240, 185, 11, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { color: '#2B2F3E' }, ticks: { color: '#848E9C' } },
+                        y: { grid: { color: '#2B2F3E' }, ticks: { color: '#848E9C' } }
+                    }
+                }
+            });
+        }
+        
+        function updateSupplyChart(supplyValue) {
+            if (!supplyChart) initSupplyChart();
+            const now = new Date().toLocaleTimeString();
+            supplyChart.data.labels.push(now);
+            supplyChart.data.datasets[0].data.push(supplyValue);
+            if (supplyChart.data.labels.length > 20) {
+                supplyChart.data.labels.shift();
+                supplyChart.data.datasets[0].data.shift();
+            }
+            supplyChart.update();
         }
 
         // Initialize
         window.addEventListener('load', () => {
             initChart();
+            initSupplyChart();
             fetchMLData();
         });
+        
+        // Auto-refresh when wallet connected (every 30 seconds)
+        setInterval(async () => {
+            if (address && contracts.token) {
+                await updateDashboard();
+                await updateSupplyInfo();
+                await updateStakingInfo();
+            }
+        }, 30000);
 
         // Tab 2 functions (Staking tab)
         let selectedDuration2 = 2592000;
@@ -2217,7 +2515,7 @@
                 await updateStakingInfoTab2();
             } catch (error) {
                 console.error('Staking error:', error);
-                showToast('Staking failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Staking failed: ' + parseError(error), 'error');
             }
         }
         
@@ -2234,7 +2532,7 @@
                 await updateStakingInfoTab2();
             } catch (error) {
                 console.error('Claim error:', error);
-                showToast('Claim failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Claim failed: ' + parseError(error), 'error');
             }
         }
         
@@ -2258,7 +2556,7 @@
                 await updateStakingInfoTab2();
             } catch (error) {
                 console.error('Unstake error:', error);
-                showToast('Unstake failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+                showToast('Unstake failed: ' + parseError(error), 'error');
             }
         }
         
@@ -2279,6 +2577,219 @@
                 document.getElementById('stakeBalance2').textContent = Number(ethers.formatUnits(balance, 18)).toFixed(2) + ' AMAT';
             } catch (error) {
                 console.log('Staking info error:', error.message);
+            }
+        }
+        
+        // Governance Functions
+        async function updateGovernanceInfo() {
+            if (!contracts.governance || !contracts.token) return;
+            try {
+                const proposalCount = await contracts.governance.proposalCount();
+                document.getElementById('govProposals').textContent = proposalCount.toString();
+                
+                // Get user's voting power
+                const balance = await contracts.token.balanceOf(address);
+                document.getElementById('govPower').textContent = Number(ethers.formatUnits(balance, 18)).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' AMAT';
+                
+                // Fetch proposals
+                await fetchProposals(proposalCount);
+            } catch (error) {
+                console.log('Governance info error:', error.message);
+            }
+        }
+        
+        async function fetchProposals(proposalCount) {
+            const container = document.getElementById('proposalsList');
+            
+            if (proposalCount === 0n) {
+                container.innerHTML = `
+                    <div class="proposal-card">
+                        <div class="proposal-header">
+                            <span class="proposal-title">No proposals yet</span>
+                        </div>
+                        <p class="proposal-desc">Create the first proposal to start governing AMAT Protocol.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let proposalsHTML = '';
+            for (let i = Number(proposalCount) - 1; i >= 0 && i >= Number(proposalCount) - 5; i--) {
+                try {
+                    const proposal = await contracts.governance.proposals(i);
+                    const votes = await contracts.governance.getProposalVotes(i);
+                    const state = await contracts.governance.getProposalState(i);
+                    const hasVoted = await contracts.governance.hasVotedOnProposal(i, address);
+                    
+                    const stateText = bytes32ToString(state);
+                    const stateClass = stateText === 'Active' ? 'active' : stateText === 'Pending' ? 'pending' : stateText === 'Executed' ? 'executed' : 'pending';
+                    const forPercent = votes[0] + votes[1] > 0 ? (Number(ethers.formatUnits(votes[0], 18)) / (Number(ethers.formatUnits(votes[0], 18)) + Number(ethers.formatUnits(votes[1], 18)))) * 100 : 0;
+                    const againstPercent = 100 - forPercent;
+                    
+                    proposalsHTML += `
+                        <div class="proposal-card">
+                            <div class="proposal-header">
+                                <span class="proposal-title">Proposal #${i + 1}</span>
+                                <span class="proposal-status ${stateClass}">${stateText}</span>
+                            </div>
+                            <p class="proposal-desc">Target: ${proposal[1]}</p>
+                            <div class="proposal-votes">
+                                <div class="vote-stat">
+                                    <span class="label">For</span>
+                                    <span class="value for">${Number(ethers.formatUnits(votes[0], 18)).toFixed(0)}</span>
+                                </div>
+                                <div class="vote-stat">
+                                    <span class="label">Against</span>
+                                    <span class="value against">${Number(ethers.formatUnits(votes[1], 18)).toFixed(0)}</span>
+                                </div>
+                            </div>
+                            <div class="vote-bar">
+                                <div class="vote-bar-for" style="width: ${forPercent}%;"></div>
+                                <div class="vote-bar-against" style="width: ${againstPercent}%;"></div>
+                            </div>
+                            ${stateText === 'Active' && !hasVoted ? `
+                                <div style="margin-top: 16px; display: flex; gap: 12px;">
+                                    <button class="action-btn primary" onclick="castVote(${i}, true)" style="flex: 1;">Vote For</button>
+                                    <button class="action-btn danger" onclick="castVote(${i}, false)" style="flex: 1;">Vote Against</button>
+                                </div>
+                            ` : hasVoted ? '<p style="margin-top: 12px; color: var(--accent-green); font-size: 13px;">You have voted on this proposal</p>' : ''}
+                        </div>
+                    `;
+                } catch (e) {
+                    console.log('Error fetching proposal:', e.message);
+                }
+            }
+            
+            container.innerHTML = proposalsHTML || '<p>No proposals found</p>';
+        }
+        
+        function bytes32ToString(bytes) {
+            const hex = bytes.replace('0x', '');
+            let str = '';
+            for (let i = 0; i < hex.length; i += 2) {
+                const charCode = parseInt(hex.substr(i, 2), 16);
+                if (charCode === 0) break;
+                str += String.fromCharCode(charCode);
+            }
+            return str.replace(/\0/g, '').trim() || 'Unknown';
+        }
+        
+        async function castVote(proposalId, support) {
+            if (!contracts.governance) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                showToast('Casting vote...', 'info');
+                const tx = await contracts.governance.castVote(proposalId, support);
+                await tx.wait();
+                showToast('Vote cast successfully!', 'success');
+                await updateGovernanceInfo();
+            } catch (error) {
+                console.error('Vote error:', error);
+                showToast('Vote failed: ' + parseError(error), 'error');
+            }
+        }
+        
+        // Treasury Functions
+        async function updateTreasuryInfo() {
+            if (!contracts.treasury) return;
+            try {
+                const balance = await contracts.treasury.getBalance();
+                const reserve = await contracts.treasury.getReserve();
+                const dailyOutflow = await contracts.treasury.getDailyOutflowStatus();
+                const weeklyOutflow = await contracts.treasury.getWeeklyOutflowStatus();
+                
+                const balanceFormatted = Number(ethers.formatUnits(balance, 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                const reserveFormatted = Number(ethers.formatUnits(reserve, 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                const dailyLimitFormatted = Number(ethers.formatUnits(dailyOutflow[1], 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                const weeklyLimitFormatted = Number(ethers.formatUnits(weeklyOutflow[1], 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                const dailyUsedFormatted = Number(ethers.formatUnits(dailyOutflow[0], 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                
+                document.getElementById('treasuryBalance').textContent = '$' + balanceFormatted;
+                document.getElementById('heroTreasury').textContent = '$' + balanceFormatted;
+                
+                document.getElementById('treasuryAmount').textContent = balanceFormatted + ' MATIC';
+                document.getElementById('treasuryReserve').textContent = reserveFormatted + ' MATIC';
+                document.getElementById('dailyLimit').textContent = dailyLimitFormatted + ' MATIC';
+                document.getElementById('weeklyLimit').textContent = weeklyLimitFormatted + ' MATIC';
+                document.getElementById('dailyUsed').textContent = dailyUsedFormatted;
+                document.getElementById('dailyMax').textContent = dailyLimitFormatted;
+                document.getElementById('treasuryBalance2').textContent = '$' + balanceFormatted;
+                
+                // Update sidebar treasury badge
+                const treasuryBadge = document.querySelector('.sidebar-card .badge');
+                if (treasuryBadge) {
+                    treasuryBadge.textContent = '$' + balanceFormatted;
+                }
+            } catch (error) {
+                console.log('Treasury info error:', error.message);
+            }
+        }
+        
+        async function requestWithdrawal() {
+            if (!contracts.treasury) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const amount = document.getElementById('withdrawAmount').value;
+                const recipient = document.getElementById('withdrawRecipient').value;
+                const proposalId = document.getElementById('withdrawProposalId').value || '0x0000000000000000000000000000000000000000000000000000000000000000';
+                
+                if (!amount || parseFloat(amount) <= 0) {
+                    showToast('Enter valid amount', 'error');
+                    return;
+                }
+                if (!recipient || !ethers.isAddress(recipient)) {
+                    showToast('Enter valid recipient address', 'error');
+                    return;
+                }
+                
+                const amountWei = ethers.parseUnits(amount, 18);
+                
+                showToast('Requesting withdrawal...', 'info');
+                const tx = await contracts.treasury.requestWithdrawal(recipient, amountWei, proposalId);
+                await tx.wait();
+                
+                showToast('Withdrawal requested! Awaiting governance approval.', 'success');
+                await updateTreasuryInfo();
+            } catch (error) {
+                console.error('Withdrawal error:', error);
+                showToast('Withdrawal failed: ' + parseError(error), 'error');
+            }
+        }
+        
+        // Supply Module Functions
+        async function updateSupplyInfo() {
+            if (!contracts.supplyModule) return;
+            try {
+                const stats = await contracts.supplyModule.getSupplyStats();
+                const canAdjust = await contracts.supplyModule.canAdjust();
+                const mode = await contracts.supplyModule.currentMode();
+                
+                const MODES_TEXT = ['STEADY', 'GROW', 'PRESERVE', 'SURVIVE'];
+                const modeText = MODES_TEXT[Number(mode)] || 'STEADY';
+                
+                document.getElementById('supplyMode').textContent = modeText;
+                document.getElementById('supplyCanAdjust').textContent = canAdjust ? 'Yes' : 'No';
+                document.getElementById('supplyCanAdjust').style.color = canAdjust ? 'var(--accent-green)' : 'var(--accent-red)';
+                
+                const epochMinted = Number(ethers.formatUnits(stats[1], 18));
+                const epochBurned = Number(ethers.formatUnits(stats[2], 18));
+                document.getElementById('epochMinted').textContent = '+' + epochMinted.toFixed(0);
+                document.getElementById('epochBurned').textContent = '-' + epochBurned.toFixed(0);
+                
+                document.getElementById('supplyChange').textContent = canAdjust ? 'Adjustable' : 'Locked';
+                document.getElementById('supplyChange').className = canAdjust ? 'stat-change up' : 'stat-change';
+                
+                document.getElementById('nextEpoch').textContent = new Date().toLocaleDateString();
+                document.getElementById('epochStatus').textContent = canAdjust ? 'Ready' : 'Cooldown';
+                
+                const tcr = stats[6];
+                document.getElementById('tcrValue').textContent = 'TCR: ' + (Number(ethers.formatUnits(tcr, 18)) * 100).toFixed(2) + '%';
+            } catch (error) {
+                console.log('Supply info error:', error.message);
             }
         }
     </script>
