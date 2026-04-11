@@ -1767,10 +1767,13 @@
             ],
             staking: [
                 "function poolCount() view returns (uint256)",
-                "function addPool(address, address, uint256, uint256, uint256, uint256) returns (uint256)",
+                "function addPool(address _stakingToken, address _rewardToken, uint256 _rewardPerSecond, uint256 _lockDuration, uint256 _minStake, uint256 _maxStake) returns (uint256)",
                 "function stake(uint256 _poolId, uint256 _amount, uint256 _lockDuration, bool _autoCompound)",
-                "function getStakeInfo(uint256 _poolId, address _user) view returns (uint256, uint256, uint256, uint256)",
-                "function getPendingReward(uint256 _poolId, address _user) view returns (uint256)"
+                "function unstake(uint256 _poolId, uint256 _amount)",
+                "function claimReward(uint256 _poolId)",
+                "function getStakeInfo(uint256 _poolId, address _user) view returns (uint256 amount, uint256 startTime, uint256 lockEndTime, uint256 pendingReward)",
+                "function poolInfo(uint256) view returns (address stakingToken, address rewardToken, uint256 rewardPerSecond, uint256 lockDuration, uint256 minStake, uint256 maxStake, uint256 totalStaked, uint256 lastRewardTime, bool active)",
+                "function emergencyWithdraw(uint256 _poolId)"
             ]
         };
 
@@ -1809,6 +1812,7 @@
                 await initContracts();
                 await updateDashboard();
                 await updateStakingInfo();
+                await updateStakingInfoTab2();
                 showToast('Wallet connected!', 'success');
             } catch (error) {
                 console.error('Connection failed:', error);
@@ -1874,16 +1878,17 @@
             if (!contracts.staking || !contracts.token) return;
             try {
                 const poolCount = await contracts.staking.poolCount();
-                if (poolCount > 0) {
+                if (poolCount > 0n) {
                     const stakeInfo = await contracts.staking.getStakeInfo(0, address);
-                    const pendingReward = await contracts.staking.getPendingReward(0, address);
+                    const pool = await contracts.staking.poolInfo(0);
                     
-                    document.getElementById('stakeStaked').textContent = ethers.formatUnits(stakeInfo[0], 18) + ' AMAT';
-                    document.getElementById('stakePending').textContent = ethers.formatUnits(pendingReward, 18) + ' AMAT';
+                    document.getElementById('stakeStaked').textContent = Number(ethers.formatUnits(stakeInfo[0], 18)).toFixed(2) + ' AMAT';
+                    document.getElementById('stakePending').textContent = Number(ethers.formatUnits(stakeInfo[3], 18)).toFixed(2) + ' AMAT';
+                    document.getElementById('stakeTotal').textContent = Number(ethers.formatUnits(pool[6], 18)).toFixed(2) + ' AMAT';
                 }
                 
                 const balance = await contracts.token.balanceOf(address);
-                document.getElementById('stakeBalance').textContent = ethers.formatUnits(balance, 18) + ' AMAT';
+                document.getElementById('stakeBalance').textContent = Number(ethers.formatUnits(balance, 18)).toFixed(2) + ' AMAT';
             } catch (error) {
                 console.log('Staking info error:', error.message);
             }
@@ -2005,15 +2010,24 @@
                 chart.update('none');
             }
             
-            // Update hero stats
-            document.getElementById('heroApy').textContent = '12.5%';
-            document.getElementById('heroTreasury').textContent = '$0';
-            document.getElementById('heroStaked').textContent = '0 AMAT';
-            
             // Update AMAT price ticker
             document.getElementById('amatPrice').textContent = '$0.00';
             document.getElementById('amatChange').textContent = '+0.00%';
             document.getElementById('amatChange').className = 'price-ticker-change up';
+            
+            // Update hero stats from blockchain
+            if (contracts.staking) {
+                try {
+                    const poolCount = await contracts.staking.poolCount();
+                    if (poolCount > 0n) {
+                        const pool = await contracts.staking.poolInfo(0);
+                        const totalStaked = Number(ethers.formatUnits(pool[6], 18)).toLocaleString(undefined, {maximumFractionDigits: 0});
+                        document.getElementById('heroStaked').textContent = totalStaked + ' AMAT';
+                    }
+                } catch (e) {
+                    document.getElementById('heroStaked').textContent = '--';
+                }
+            }
         }
 
         async function activateEmergency() {
@@ -2037,7 +2051,7 @@
             }
             try {
                 const balance = await contracts.token.balanceOf(address);
-                document.getElementById('stakeAmount').value = ethers.formatUnits(balance, 18);
+                document.getElementById('stakeAmount').value = Number(ethers.formatUnits(balance, 18)).toFixed(4);
             } catch (error) {
                 showToast('Error getting balance', 'error');
             }
@@ -2050,12 +2064,12 @@
             }
             try {
                 const amount = document.getElementById('stakeAmount').value;
-                const amountWei = ethers.parseUnits(amount, 18);
-                
-                if (amountWei <= 0) {
+                if (!amount || parseFloat(amount) <= 0) {
                     showToast('Enter valid amount', 'error');
                     return;
                 }
+                
+                const amountWei = ethers.parseUnits(amount, 18);
                 
                 // Check if pool exists
                 const poolCount = await contracts.staking.poolCount();
@@ -2077,16 +2091,50 @@
                 showToast('Staked successfully!', 'success');
                 await updateStakingInfo();
             } catch (error) {
-                showToast('Staking failed: ' + (error.reason || error.message), 'error');
+                console.error('Staking error:', error);
+                showToast('Staking failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
             }
         }
 
         async function doClaim() {
-            showToast('Claim rewards coming soon!', 'info');
+            if (!contracts.staking) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                showToast('Claiming rewards...', 'info');
+                const tx = await contracts.staking.claimReward(0);
+                await tx.wait();
+                showToast('Rewards claimed!', 'success');
+                await updateStakingInfo();
+            } catch (error) {
+                console.error('Claim error:', error);
+                showToast('Claim failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+            }
         }
 
         async function doUnstake() {
-            showToast('Unstaking coming soon!', 'info');
+            if (!contracts.staking) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const amount = document.getElementById('stakeAmount').value;
+                if (!amount || parseFloat(amount) <= 0) {
+                    showToast('Enter amount to unstake', 'error');
+                    return;
+                }
+                
+                const amountWei = ethers.parseUnits(amount, 18);
+                showToast('Unstaking...', 'info');
+                const tx = await contracts.staking.unstake(0, amountWei);
+                await tx.wait();
+                showToast('Unstaked!', 'success');
+                await updateStakingInfo();
+            } catch (error) {
+                console.error('Unstake error:', error);
+                showToast('Unstake failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+            }
         }
 
         // Tab System
@@ -2104,6 +2152,10 @@
             }
             
             event.target.classList.add('active');
+            
+            if (tabName === 'staking' && address) {
+                updateStakingInfoTab2();
+            }
         }
 
         // Initialize
@@ -2111,6 +2163,124 @@
             initChart();
             fetchMLData();
         });
+
+        // Tab 2 functions (Staking tab)
+        let selectedDuration2 = 2592000;
+        
+        function selectDuration2(btn) {
+            document.querySelectorAll('#tab-staking .duration-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedDuration2 = parseInt(btn.dataset.duration);
+        }
+        
+        async function setMaxStake2() {
+            if (!contracts.token) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const balance = await contracts.token.balanceOf(address);
+                document.getElementById('stakeAmount2').value = Number(ethers.formatUnits(balance, 18)).toFixed(4);
+            } catch (error) {
+                showToast('Error getting balance', 'error');
+            }
+        }
+        
+        async function doStake2() {
+            if (!contracts.staking || !contracts.token) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const amount = document.getElementById('stakeAmount2').value;
+                if (!amount || parseFloat(amount) <= 0) {
+                    showToast('Enter valid amount', 'error');
+                    return;
+                }
+                
+                const amountWei = ethers.parseUnits(amount, 18);
+                const poolCount = await contracts.staking.poolCount();
+                if (poolCount === 0n) {
+                    showToast('No staking pool yet', 'error');
+                    return;
+                }
+                
+                showToast('Approving tokens...', 'info');
+                const approveTx = await contracts.token.approve(CONFIG.contracts.staking, amountWei);
+                await approveTx.wait();
+                
+                showToast('Staking...', 'info');
+                const stakeTx = await contracts.staking.stake(0, amountWei, selectedDuration2, false);
+                await stakeTx.wait();
+                
+                showToast('Staked successfully!', 'success');
+                await updateStakingInfoTab2();
+            } catch (error) {
+                console.error('Staking error:', error);
+                showToast('Staking failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+            }
+        }
+        
+        async function doClaim2() {
+            if (!contracts.staking) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                showToast('Claiming rewards...', 'info');
+                const tx = await contracts.staking.claimReward(0);
+                await tx.wait();
+                showToast('Rewards claimed!', 'success');
+                await updateStakingInfoTab2();
+            } catch (error) {
+                console.error('Claim error:', error);
+                showToast('Claim failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+            }
+        }
+        
+        async function doUnstake2() {
+            if (!contracts.staking) {
+                showToast('Connect wallet first', 'error');
+                return;
+            }
+            try {
+                const amount = document.getElementById('stakeAmount2').value;
+                if (!amount || parseFloat(amount) <= 0) {
+                    showToast('Enter amount to unstake', 'error');
+                    return;
+                }
+                
+                const amountWei = ethers.parseUnits(amount, 18);
+                showToast('Unstaking...', 'info');
+                const tx = await contracts.staking.unstake(0, amountWei);
+                await tx.wait();
+                showToast('Unstaked!', 'success');
+                await updateStakingInfoTab2();
+            } catch (error) {
+                console.error('Unstake error:', error);
+                showToast('Unstake failed: ' + (error.reason || error.message.slice(0, 100)), 'error');
+            }
+        }
+        
+        async function updateStakingInfoTab2() {
+            if (!contracts.staking || !contracts.token) return;
+            try {
+                const poolCount = await contracts.staking.poolCount();
+                if (poolCount > 0n) {
+                    const stakeInfo = await contracts.staking.getStakeInfo(0, address);
+                    const pool = await contracts.staking.poolInfo(0);
+                    
+                    document.getElementById('stakeStaked2').textContent = Number(ethers.formatUnits(stakeInfo[0], 18)).toFixed(2) + ' AMAT';
+                    document.getElementById('stakePending2').textContent = Number(ethers.formatUnits(stakeInfo[3], 18)).toFixed(2) + ' AMAT';
+                    document.getElementById('stakeTotal2').textContent = Number(ethers.formatUnits(pool[6], 18)).toFixed(2) + ' AMAT';
+                }
+                
+                const balance = await contracts.token.balanceOf(address);
+                document.getElementById('stakeBalance2').textContent = Number(ethers.formatUnits(balance, 18)).toFixed(2) + ' AMAT';
+            } catch (error) {
+                console.log('Staking info error:', error.message);
+            }
+        }
     </script>
 </body>
 </html>
